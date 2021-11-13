@@ -6,5 +6,5 @@ Comment out `target` and `gait` nodes inside `legged_robot.launch`
 
 ### Steps
 1. Source ROS workspace setup file
-2. Run test_robot.py
+2. Run `test_legged.py`
 3. Find output of `roslaunch` in `launch_result`
