@@ -1,23 +1,14 @@
-from subprocess import check_output, Popen, DEVNULL, PIPE
+from subprocess import check_output, Popen, DEVNULL, PIPE, CalledProcessError
 import time
 from numpy import loadtxt
 import os
 from datetime import datetime
 from pathlib import Path
+import toml
 
-dir_path = os.path.dirname(os.path.realpath(__file__))
-test_cases = loadtxt(dir_path + '/test_cases.data')
-time_scale = 1.0
-all_time = sum([c[0] * time_scale for c in test_cases])
-ocs2_legged_robot_config_dir = check_output(['rospack', 'find', 'ocs2_legged_robot'], encoding='UTF-8')[:-1]
-ocs2_legged_robot_ros_dir = check_output(['rospack', 'find', 'ocs2_legged_robot_ros'], encoding='UTF-8')[:-1]
-
-gait_config_path = ocs2_legged_robot_config_dir + '/config/command/gait.info'
-target_command_config_path = ocs2_legged_robot_config_dir + '/config/command/targetTrajectories.info'
-launch_file = ocs2_legged_robot_ros_dir + '/launch/legged_robot_ddp.launch'
-print("Find ocs2 in " + ocs2_legged_robot_config_dir)
-print("Launch file " + launch_file)
-
+def checkExists(path):
+    if not Path(path).exists():
+        raise RuntimeError("Can NOT find file " + path) 
 
 def limitInput(x, control, limit):
     if abs(x) > abs(limit):
@@ -27,17 +18,43 @@ def limitInput(x, control, limit):
             return [control - x - limit, -limit]
     else:
         return [control, x]
+    
 
+dir_path = os.path.dirname(os.path.realpath(__file__))
+configFile = dir_path + "/config.toml"
+checkExists(configFile)
+
+settings = toml.load(configFile)
+# print(settings)
+print("=================================")
+print(toml.dumps(settings))
+print("=================================")
+
+test_file = dir_path + '/' + settings['test_file']
+checkExists(test_file)
+
+# Load and scale test cases
+test_cases = loadtxt(test_file)
+time_scale = settings['time_scale']
+all_time = sum([c[0] * time_scale for c in test_cases])
+
+checkExists(settings['launch']['gait_config_path'])
+checkExists(settings['launch']['target_config_path'])
+checkExists(settings['launch']['launch_file_path'])
 
 try:
-    Path(dir_path + "/log").mkdir(exist_ok=True)
-    f = open(dir_path + '/log/launch_result-' + str(datetime.now()), 'w')
-    p_launch = Popen(['roslaunch', launch_file], stderr=f, stdin=DEVNULL, stdout=DEVNULL, encoding='UTF-8', bufsize=0)
-    time.sleep(5)
-    p_gait = Popen(['rosrun', 'ocs2_legged_robot_ros', 'legged_robot_gait_command', 'legged_robot',
-                    gait_config_path], stderr=DEVNULL, stdin=PIPE, stdout=DEVNULL, encoding='UTF-8', bufsize=0)
-    p_target = Popen(['rosrun', 'ocs2_legged_robot_ros', 'legged_robot_target', 'legged_robot',
-                      target_command_config_path], stderr=DEVNULL, stdin=PIPE, stdout=DEVNULL, encoding='UTF-8', bufsize=0)
+    check_output(['rospack', 'find', settings['launch']['package_name']])
+except CalledProcessError:
+    print("Please source the workspace setup file.")
+    exit()
+
+try:
+    Path(dir_path + settings['log']['root_dir']).mkdir(exist_ok=True)
+    f = open(dir_path + settings['log']['root_dir'] + '/' + settings['log']['log_prefix'] + '-' + str(datetime.now()) + '.txt', 'w')
+    p_launch = Popen(['roslaunch', settings['launch']['launch_file_path']], stderr=f, stdin=DEVNULL, stdout=DEVNULL, encoding='UTF-8', bufsize=0)
+    time.sleep(settings['wait_before_start_trot_s'])
+    p_gait = Popen(['rosrun', settings['launch']['package_name'], settings['launch']['gait_command_node_name']] + settings['launch']['gait_command_node_args'], stderr=DEVNULL, stdin=PIPE, stdout=DEVNULL, encoding='UTF-8', bufsize=0)
+    p_target = Popen(['rosrun', settings['launch']['package_name'], settings['launch']['target_command_node_name']] + settings['launch']['target_command_node_args'], stderr=DEVNULL, stdin=PIPE, stdout=DEVNULL, encoding='UTF-8', bufsize=0)
     print("Trot")
     p_gait.stdin.flush()
     p_gait.stdin.write('trot\n')
@@ -50,9 +67,9 @@ try:
     x = 0
     y = 0
     for c in test_cases:
-        x = x+c[1]
-        y = y+c[2]
-        limit = 1
+        # x = x+c[1]
+        # y = y+c[2]
+        # limit = 1
         # c[1], x = limitInput(x, c[1], limit)
         # c[2], y = limitInput(y, c[2], limit)
 

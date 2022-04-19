@@ -1,0 +1,22 @@
+time_scale = 1.0
+test_file = "test_cases.data"
+wait_before_start_trot_s = 5
+
+[robot.launch]
+launch_file_path = ""
+package_name = ""
+gait_config_path = ""
+gait_command_node_name = ""
+gait_command_node_args = []
+target_config_path = ""
+target_command_node_name = ""
+target_command_node_args = []
+
+
+[log]
+root_dir = "/log"
+log_prefix = "result"
+
+
+
+
